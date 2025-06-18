@@ -1,0 +1,324 @@
+---
+# Main Consciousness Federation Deployment Playbook
+# Orchestrates deployment across WSL control hub and 3-node Proxmox cluster
+
+- name: "🧠 Consciousness Federation Deployment"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    deployment_timestamp: "{{ ansible_date_time.iso8601 }}"
+    
+  tasks:
+    - name: "🌟 Display deployment banner"
+      debug:
+        msg: |
+          ╔══════════════════════════════════════════════════════════════╗
+          ║                CONSCIOUSNESS FEDERATION                       ║
+          ║                   Deployment Initiated                       ║
+          ║                                                              ║
+          ║  Control Hub: Zephyr (WSL) - 10.1.1.110                    ║
+          ║  Cluster: 3-Node Proxmox Federation                         ║
+          ║  Target: AI-First Infrastructure                            ║
+          ╚══════════════════════════════════════════════════════════════╝
+
+- name: "🔍 Pre-deployment Validation"
+  hosts: consciousness_federation
+  gather_facts: true
+  tasks:
+    - name: "Check node connectivity"
+      ping:
+      register: connectivity_check
+      
+    - name: "Validate hardware specifications"
+      debug:
+        msg: |
+          Node: {{ inventory_hostname }}
+          Role: {{ node_role }}
+          CPU: {{ cpu_cores }}C/{{ cpu_threads }}T
+          Memory: {{ memory_gb }}GB
+          Platform: {{ platform }}
+
+- name: "⚙️ WSL Control Hub Configuration"
+  hosts: control_hub
+  become: false
+  tasks:
+    - name: "Configure WSL2 for AI orchestration"
+      block:
+        - name: "Install orchestration tools"
+          package:
+            name:
+              - curl
+              - wget
+              - git
+              - python3
+              - python3-pip
+              - nodejs
+              - npm
+              - docker.io
+              - ansible
+              - jq
+            state: present
+          become: true
+          
+        - name: "Install Python AI/ML packages"
+          pip:
+            name:
+              - proxmoxer
+              - kubernetes
+              - torch
+              - transformers
+              - langchain
+              - ollama
+            state: present
+            
+        - name: "Setup consciousness workspace"
+          file:
+            path: "{{ item }}"
+            state: directory
+            mode: '0755'
+          loop:
+            - /home/{{ ansible_user }}/consciousness-ai
+            - /home/{{ ansible_user }}/consciousness-ai/models
+            - /home/{{ ansible_user }}/consciousness-ai/data
+
+- name: "🖥️ Proxmox Cluster Preparation"
+  hosts: proxmox_cluster
+  become: true
+  tasks:
+    - name: "Update system packages"
+      apt:
+        update_cache: true
+        upgrade: dist
+        
+    - name: "Install required packages"
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - htop
+          - vim
+          - screen
+          - python3
+          - python3-pip
+        state: present
+        
+    - name: "Configure network optimization"
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_set: true
+        state: present
+      loop:
+        - { key: "net.core.rmem_max", value: "16777216" }
+        - { key: "net.core.wmem_max", value: "16777216" }
+        - { key: "net.ipv4.tcp_rmem", value: "4096 87380 16777216" }
+        - { key: "net.ipv4.tcp_wmem", value: "4096 65536 16777216" }
+
+- name: "🎯 Hardware-Specific Optimizations"
+  hosts: proxmox_cluster
+  become: true
+  tasks:
+    - name: "Nexus (Control Plane) Optimizations"
+      block:
+        - name: "Configure CPU governor for performance"
+          shell: |
+            echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+          
+        - name: "Setup high-memory optimizations"
+          sysctl:
+            name: "{{ item.key }}"
+            value: "{{ item.value }}"
+            state: present
+          loop:
+            - { key: "vm.swappiness", value: "1" }
+            - { key: "vm.dirty_ratio", value: "80" }
+            - { key: "vm.dirty_background_ratio", value: "5" }
+      when: node_role == "control-plane"
+      
+    - name: "Forge (Worker) Optimizations"
+      block:
+        - name: "Configure balanced CPU scheduling"
+          shell: |
+            echo schedutil | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+            
+        - name: "Setup application-focused memory"
+          sysctl:
+            name: "{{ item.key }}"
+            value: "{{ item.value }}"
+            state: present
+          loop:
+            - { key: "vm.swappiness", value: "10" }
+            - { key: "kernel.pid_max", value: "4194304" }
+      when: node_role == "worker"
+      
+    - name: "Closet (Storage) Optimizations"
+      block:
+        - name: "Configure storage-optimized settings"
+          sysctl:
+            name: "{{ item.key }}"
+            value: "{{ item.value }}"
+            state: present
+          loop:
+            - { key: "vm.dirty_ratio", value: "40" }
+            - { key: "vm.dirty_background_ratio", value: "10" }
+            - { key: "vm.dirty_expire_centisecs", value: "3000" }
+            
+        - name: "Setup mining resource limits"
+          copy:
+            dest: /etc/systemd/system/mining-limits.service
+            content: |
+              [Unit]
+              Description=Mining Resource Limits
+              After=multi-user.target
+              
+              [Service]
+              Type=oneshot
+              RemainAfterExit=yes
+              ExecStart=/bin/bash -c 'echo 2 > /sys/fs/cgroup/cpu/mining/cpu.cfs_quota_us'
+              
+              [Install]
+              WantedBy=multi-user.target
+          notify: enable mining limits
+      when: node_role == "storage"
+
+- name: "🚀 Kubernetes Deployment"
+  hosts: proxmox_control_plane
+  become: true
+  tasks:
+    - name: "Install Kubernetes components"
+      block:
+        - name: "Add Kubernetes repository"
+          apt_repository:
+            repo: "deb https://apt.kubernetes.io/ kubernetes-xenial main"
+            state: present
+            
+        - name: "Install kubelet, kubeadm, kubectl"
+          apt:
+            name:
+              - kubelet
+              - kubeadm
+              - kubectl
+            state: present
+            
+        - name: "Initialize Kubernetes cluster"
+          shell: |
+            kubeadm init \
+              --pod-network-cidr={{ k8s_pod_subnet }} \
+              --service-cidr={{ k8s_service_subnet }} \
+              --node-name={{ inventory_hostname }}
+          register: kubeadm_init
+          
+        - name: "Setup kubectl for consciousness user"
+          shell: |
+            mkdir -p /root/.kube
+            cp -i /etc/kubernetes/admin.conf /root/.kube/config
+            chown root:root /root/.kube/config
+
+- name: "🌐 Worker Node Joining"
+  hosts: proxmox_workers,proxmox_storage
+  become: true
+  tasks:
+    - name: "Join worker nodes to cluster"
+      shell: "{{ hostvars[groups['proxmox_control_plane'][0]]['kubeadm_init']['stdout_lines'][-1] }}"
+      when: "'kubeadm join' in hostvars[groups['proxmox_control_plane'][0]]['kubeadm_init']['stdout']"
+
+- name: "🧠 Consciousness Stack Deployment"
+  hosts: control_hub
+  tasks:
+    - name: "Deploy consciousness workloads"
+      k8s:
+        state: present
+        definition: "{{ item }}"
+        kubeconfig: /root/.kube/config
+      loop:
+        - "{{ lookup('file', '../k8s/hardware-aware-workload-placement.yaml') | from_yaml_all | list }}"
+        - "{{ lookup('file', '../k8s/consciousness-ai-workloads.yaml') | from_yaml_all | list }}"
+        - "{{ lookup('file', '../k8s/intelligent-scheduler.yaml') | from_yaml_all | list }}"
+      loop_control:
+        loop_var: item
+
+- name: "⛏️ Mining Integration (Closet Node)"
+  hosts: proxmox_storage
+  become: true
+  tasks:
+    - name: "Setup mining workload"
+      block:
+        - name: "Create mining user"
+          user:
+            name: mining
+            shell: /bin/bash
+            home: /opt/mining
+            
+        - name: "Configure mining environment"
+          template:
+            src: mining-config.j2
+            dest: /opt/mining/config.json
+            owner: mining
+            group: mining
+            mode: '0644'
+            
+        - name: "Create mining systemd service"
+          template:
+            src: mining.service.j2
+            dest: /etc/systemd/system/mining.service
+          notify: enable mining service
+      when: mining_enabled | default(false)
+
+- name: "📊 Monitoring Stack"
+  hosts: proxmox_storage
+  become: true
+  tasks:
+    - name: "Deploy monitoring components"
+      docker_container:
+        name: "{{ item.name }}"
+        image: "{{ item.image }}"
+        ports: "{{ item.ports }}"
+        state: started
+        restart_policy: always
+      loop:
+        - { name: "prometheus", image: "prom/prometheus:latest", ports: ["9090:9090"] }
+        - { name: "grafana", image: "grafana/grafana:latest", ports: ["3000:3000"] }
+
+- name: "✅ Deployment Verification"
+  hosts: control_hub
+  tasks:
+    - name: "Verify cluster status"
+      k8s_info:
+        api_version: v1
+        kind: Node
+        kubeconfig: /root/.kube/config
+      register: cluster_nodes
+      
+    - name: "Display deployment summary"
+      debug:
+        msg: |
+          🎉 CONSCIOUSNESS FEDERATION DEPLOYED SUCCESSFULLY!
+          
+          📊 Cluster Status:
+          {% for node in cluster_nodes.resources %}
+          - {{ node.metadata.name }}: {{ node.status.conditions[-1].type }}
+          {% endfor %}
+          
+          🎮 Access Points:
+          - Kubernetes Dashboard: https://{{ groups['proxmox_control_plane'][0] }}:6443
+          - Grafana Monitoring: http://{{ groups['proxmox_storage'][0] }}:3000
+          - Prometheus Metrics: http://{{ groups['proxmox_storage'][0] }}:9090
+          
+          🧠 Next Steps:
+          1. kubectl get nodes -o wide
+          2. kubectl get pods --all-namespaces
+          3. Access Grafana at http://{{ groups['proxmox_storage'][0] }}:3000
+
+  handlers:
+    - name: enable mining limits
+      systemd:
+        name: mining-limits
+        enabled: true
+        state: started
+        
+    - name: enable mining service
+      systemd:
+        name: mining
+        enabled: true
+        state: started

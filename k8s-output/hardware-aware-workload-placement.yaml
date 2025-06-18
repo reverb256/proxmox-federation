@@ -1,0 +1,266 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hardware-topology
+  namespace: consciousness-system
+data:
+  # Hardware-specific node configurations based on actual specs
+  topology.yaml: |
+    nodes:
+      zephyr:
+        ip: 10.1.1.110
+        role: control-hub
+        platform: wsl2
+        hardware:
+          cpu: "AMD Ryzen 9 5950X"
+          cores: 16
+          threads: 32
+          memory: 65536  # 64GB
+          storage: 3072  # 3TB NVMe
+        capabilities:
+          - ai-training
+          - orchestration
+          - development
+          - model-serving
+        workloads:
+          - consciousness-orchestrator
+          - ai-model-training
+          - development-environment
+          
+      nexus:
+        ip: 10.1.1.120
+        role: control-plane
+        platform: proxmox
+        hardware:
+          cpu: "AMD Ryzen 9 3900X"
+          cores: 12
+          threads: 24
+          memory: 48090  # ~48GB
+          storage: 5652  # ~5.5TB mixed
+        capabilities:
+          - kubernetes-master
+          - high-memory-workloads
+          - database-cluster
+          - inference-serving
+        workloads:
+          - etcd-cluster
+          - api-server
+          - controller-manager
+          - vector-database
+          - redis-cluster
+          
+      forge:
+        ip: 10.1.1.130
+        role: worker
+        platform: proxmox
+        hardware:
+          cpu: "Intel Core i5-9500"
+          cores: 6
+          threads: 6
+          memory: 32013  # ~32GB
+          storage: 1505  # ~1.5TB mixed
+        capabilities:
+          - application-services
+          - web-frontends
+          - api-gateways
+          - medium-workloads
+        workloads:
+          - web-applications
+          - api-services
+          - ingress-controllers
+          - consciousness-ui
+          
+      closet:
+        ip: 10.1.1.160
+        role: storage
+        platform: proxmox
+        hardware:
+          cpu: "AMD Ryzen 7 1700"
+          cores: 8
+          threads: 16
+          memory: 15911  # ~16GB
+          storage: 754   # ~700GB mixed
+        capabilities:
+          - long-term-storage
+          - backup-services
+          - monitoring-stack
+          - mining-integration
+        workloads:
+          - prometheus
+          - grafana
+          - loki
+          - backup-jobs
+          - mining-workload
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-allocation
+  namespace: consciousness-system
+data:
+  # Resource allocation based on hardware capabilities
+  allocation.yaml: |
+    resource_profiles:
+      zephyr:
+        reservations:
+          cpu: "2"      # Reserve 2 cores for WSL/Windows
+          memory: "16Gi" # Reserve 16GB for host OS
+        limits:
+          cpu: "14"     # Use 14 cores for workloads
+          memory: "48Gi" # Use 48GB for AI training
+        storage_classes:
+          - name: nvme-fast
+            size: "2Ti"
+            type: nvme
+            
+      nexus:
+        reservations:
+          cpu: "2"      # Reserve 2 cores for Proxmox
+          memory: "4Gi" # Reserve 4GB for hypervisor
+        limits:
+          cpu: "22"     # Use 22 threads for workloads
+          memory: "44Gi" # Use 44GB for applications
+        storage_classes:
+          - name: ssd-primary
+            size: "400Gi"
+            type: ssd
+          - name: hdd-bulk
+            size: "4Ti"
+            type: hdd
+            
+      forge:
+        reservations:
+          cpu: "1"      # Reserve 1 core for Proxmox
+          memory: "2Gi" # Reserve 2GB for hypervisor
+        limits:
+          cpu: "5"      # Use 5 cores for workloads
+          memory: "30Gi" # Use 30GB for applications
+        storage_classes:
+          - name: ssd-app
+            size: "300Gi"
+            type: ssd
+          - name: hdd-data
+            size: "900Gi"
+            type: hdd
+            
+      closet:
+        reservations:
+          cpu: "2"      # Reserve 2 cores for system/mining
+          memory: "2Gi" # Reserve 2GB for hypervisor
+        limits:
+          cpu: "14"     # Use 14 threads for workloads
+          memory: "13Gi" # Use 13GB for services
+        storage_classes:
+          - name: hdd-storage
+            size: "600Gi"
+            type: hdd
+          - name: ssd-cache
+            size: "50Gi"
+            type: ssd
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workload-placement
+  namespace: consciousness-system
+data:
+  # Intelligent workload placement based on hardware strengths
+  placement.yaml: |
+    placement_rules:
+      ai_training:
+        preferred_nodes: [zephyr]
+        anti_affinity: []
+        resources:
+          cpu: "8-12"
+          memory: "16-32Gi"
+          gpu: optional
+          
+      ai_inference:
+        preferred_nodes: [nexus, zephyr]
+        anti_affinity: [ai_training]
+        resources:
+          cpu: "2-4" 
+          memory: "4-8Gi"
+          
+      databases:
+        preferred_nodes: [nexus]
+        anti_affinity: [ai_training]
+        resources:
+          cpu: "4-8"
+          memory: "8-16Gi"
+          storage: "ssd-primary"
+          
+      web_services:
+        preferred_nodes: [forge]
+        anti_affinity: []
+        resources:
+          cpu: "1-3"
+          memory: "2-4Gi"
+          
+      monitoring:
+        preferred_nodes: [closet]
+        anti_affinity: []
+        resources:
+          cpu: "2-4"
+          memory: "4-8Gi"
+          storage: "hdd-storage"
+          
+      mining:
+        preferred_nodes: [closet]
+        anti_affinity: [monitoring]
+        resources:
+          cpu: "2"
+          memory: "2Gi"
+        schedule: "off-peak-hours"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consciousness-scheduler
+  namespace: consciousness-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consciousness-scheduler
+  template:
+    metadata:
+      labels:
+        app: consciousness-scheduler
+    spec:
+      nodeSelector:
+        consciousness.ai/role: control-plane
+      containers:
+      - name: scheduler
+        image: consciousness/intelligent-scheduler:latest
+        env:
+        - name: HARDWARE_TOPOLOGY_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: hardware-topology
+              key: topology.yaml
+        - name: RESOURCE_ALLOCATION_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: resource-allocation
+              key: allocation.yaml
+        - name: PLACEMENT_RULES_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: workload-placement
+              key: placement.yaml
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        ports:
+        - containerPort: 8080
+          name: api
+        - containerPort: 9090
+          name: metrics

@@ -1,0 +1,55 @@
+# AI Command Center Requirements
+# Core dependencies for consciousness orchestration hub
+
+# Web frameworks and API
+gradio>=4.0.0
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+streamlit>=1.28.0
+
+# AI and ML libraries
+openai>=1.3.0
+iointel>=0.1.0
+transformers>=4.35.0
+torch>=2.1.0
+torchvision>=0.16.0
+torchaudio>=2.1.0
+huggingface_hub>=0.17.0
+accelerate>=0.24.0
+bitsandbytes>=0.41.0
+
+# HTTP and networking
+requests>=2.31.0
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Data processing and utilities
+numpy>=1.24.0
+pandas>=2.1.0
+pillow>=10.0.0
+python-multipart>=0.0.6
+
+# Async and concurrency
+asyncio
+aiofiles>=23.2.0
+
+# Configuration and environment
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Infrastructure and monitoring
+proxmoxer>=1.3.0
+psutil>=5.9.0
+
+# Development and testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Optional dependencies for enhanced features
+sentence-transformers>=2.2.0  # For embeddings
+datasets>=2.14.0  # For dataset processing
+langchain>=0.0.300  # For advanced workflows
+chromadb>=0.4.0  # For vector storage
