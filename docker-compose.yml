@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  consciousness-control-center:
+    build: .
+    container_name: consciousness-zero
+    environment:
+      - CONSCIOUSNESS_ENVIRONMENT=docker
+      - CONSCIOUSNESS_DEBUG_MODE=false
+      - CONSCIOUSNESS_AGENT_NAME=Consciousness Zero
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # For Docker management
+    networks:
+      - consciousness-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sys; sys.path.append('/app'); from consciousness_zero_optimized import initialize_agent; agent = initialize_agent(); print('healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "consciousness.component=control-center"
+      - "consciousness.version=3.0.0"
+
+  # Optional: Open WebUI integration
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - WEBUI_SECRET_KEY=your-secret-key-here
+    volumes:
+      - open-webui:/app/backend/data
+    networks:
+      - consciousness-network
+    restart: unless-stopped
+    labels:
+      - "consciousness.component=web-ui"
+
+  # Optional: Ollama for local LLM
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - consciousness-network
+    restart: unless-stopped
+    labels:
+      - "consciousness.component=llm"
+
+  ai-gateway:
+    build:
+      context: .
+    container_name: ai-gateway
+    command: uvicorn ai_gateway:app --host 0.0.0.0 --port 8080
+    environment:
+      - VLLM_URL=http://vllm:8000
+      - SD_URL=http://stable-diffusion:5000
+      - TTS_URL=http://tts:5002
+      - STT_URL=http://stt:5003
+      - EMBED_URL=http://embeddings:5004
+      - VLLM_FALLBACK_URLS=https://api.intelligence.io.solutions/api/v1
+      - SD_FALLBACK_URLS=https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0
+      - TTS_FALLBACK_URLS=https://api-inference.huggingface.co/models/suno/bark
+      - STT_FALLBACK_URLS=https://api-inference.huggingface.co/models/openai/whisper-large-v3
+      - EMBED_FALLBACK_URLS=https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+    networks:
+      - consciousness-network
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "consciousness.component=ai-gateway"
+
+networks:
+  consciousness-network:
+    driver: bridge
+    labels:
+      - "consciousness.network=main"
+
+volumes:
+  open-webui:
+    labels:
+      - "consciousness.data=webui"
+  ollama:
+    labels:
+      - "consciousness.data=llm"

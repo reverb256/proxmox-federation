@@ -1,49 +1,67 @@
-# Aria Personal Trading System - Deployment Instructions
+# Consciousness Control Center - Deployment Instructions
 
 ## Quick Deployment Guide
 
-Your Aria system is ready for deployment on your Proxmox cluster. Execute these commands on your Proxmox host (nexus):
+Your Consciousness Control Center is ready for deployment on your Proxmox cluster. This system provides comprehensive AI orchestration with RAG, agentic capabilities, and complete infrastructure automation.
 
 ### 1. Deploy the Complete System
 ```bash
-./complete-aria-deployment.sh
+# Clone and setup
+git clone <repository>
+cd proxmox-federation
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys and Proxmox settings
+
+# Deploy services
+docker-compose up -d --build
 ```
 
 This will:
-- Set up encrypted secrets management with aria-secrets command
-- Create K3s cluster on containers 310-312  
-- Deploy trading dashboard and AI agents
-- Configure Proxmox API integration
+- Set up unified AI gateway with OpenAI compatibility
+- Deploy RAG system with document processing
+- Initialize agentic orchestration framework
+- Configure all MCP modules (Talos/K8s, monitoring, database, security, workflow)
+- Set up Proxmox API integration
 
-### 2. Configure Trading API Keys (After Deployment)
+### 2. Configure API Keys and Services
 ```bash
-aria-secrets setup-trading
+# Edit environment configuration
+nano .env
+
+# Required configurations:
+# - AI Provider API keys (OpenAI, HuggingFace, etc.)
+# - Proxmox credentials
+# - Database settings
+# - Security keys
 ```
 
-Select your exchange (Binance, Coinbase, Kraken) and enter API credentials securely.
-
 ### 3. Access Your System
-- **Dashboard**: http://[master-ip]:30080
-- **Trading Interface**: Accessible through the dashboard
-- **Secrets Management**: Use `aria-secrets` commands
+- **API Gateway**: http://[host]:8080
+- **API Documentation**: http://[host]:8080/docs
+- **Health Check**: http://[host]:8080/health
+- **Model Discovery**: http://[host]:8080/v1/models
 
 ## System Architecture
 
-**Container Layout:**
-- 310 (aria-master): K3s master node + dashboard (8GB RAM, 4 cores)
-- 311 (aria-worker-1): Trading agent + strategies (6GB RAM, 3 cores)  
-- 312 (aria-worker-2): Risk management + portfolio tracking (6GB RAM, 3 cores)
-
 **Core Components:**
-- Momentum trading strategy with trend detection
-- Mean reversion strategy for oversold/overbought conditions
-- Risk management with position sizing and portfolio limits
-- Encrypted credential storage with local key management
-- Web dashboard for monitoring and configuration
+- **AI Gateway**: Unified OpenAI-compatible API with provider redundancy
+- **RAG Service**: Document processing, vector storage, and Q&A
+- **Agent Service**: Multi-agent orchestration with autonomous task execution
+- **MCP Modules**: Professional orchestration for infrastructure, monitoring, security
+- **Talos/K8s**: Container cluster lifecycle management
+- **Workflow Engine**: Complex automation and task orchestration
 
-## Available Commands
+**Container Layout:**
+- Gateway: FastAPI application with all endpoints
+- Database: PostgreSQL for persistent storage
+- AI Services: vLLM, Stable Diffusion, TTS, STT, Embeddings
+- Monitoring: Prometheus, Grafana, AlertManager (optional)
 
-After deployment, these commands will be available:
+## Available Endpoints
+
+After deployment, these endpoints will be available:
 
 ```bash
 # System Status
