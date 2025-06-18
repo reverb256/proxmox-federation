@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-stack-ingress
+  namespace: consciousness-federation
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  rules:
+    - host: ai.yourdomain.com  # Change to your domain
+      http:
+        paths:
+          - path: /llm-proxy/?(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: llm-proxy
+                port:
+                  number: 8000
+          - path: /void-proxy/?(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: void-proxy
+                port:
+                  number: 5000

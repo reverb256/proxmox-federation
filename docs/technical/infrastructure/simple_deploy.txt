@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Simple Consciousness Federation Deploy for Nexus
+# Copy and paste this entire script into your terminal
+
+wget -O nexus-direct-deploy.sh https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/docker/docker-compose.yml
+curl -sSL https://get.docker.com | sh
+systemctl enable docker
+systemctl start docker
+
+# Create consciousness federation containers
+docker run -d --name vaultwarden \
+  -e ADMIN_TOKEN=$(openssl rand -base64 48) \
+  -p 8080:80 \
+  -v vw-data:/data \
+  vaultwarden/server:latest
+
+# Create simple web server
+docker run -d --name consciousness-web \
+  -p 3000:80 \
+  -e CONTENT='{"status":"Consciousness Federation Active","timestamp":"'$(date -Iseconds)'","services":{"vaultwarden":"http://10.1.1.120:8080"}}' \
+  nginx:alpine
+
+# Show status
+echo "🎉 Consciousness Federation deployed!"
+echo "Vaultwarden: http://10.1.1.120:8080"
+echo "Web Interface: http://10.1.1.120:3000"
+docker ps
+

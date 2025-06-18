@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: void-proxy
+  namespace: consciousness-federation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: void-proxy
+  template:
+    metadata:
+      labels:
+        app: void-proxy
+    spec:
+      containers:
+      - name: void-proxy
+        image: <your-registry>/void-proxy:latest  # Replace with your image
+        ports:
+        - containerPort: 5000
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "5000"
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+        - name: IO_INTELLIGENCE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-api-keys
+              key: io_intelligence_key
+        - name: IO_INTELLIGENCE_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: ai-api-keys 
+              key: openai_endpoint
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: void-proxy
+  namespace: consciousness-federation
+spec:
+  selector:
+    app: void-proxy
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: 5000
+  type: ClusterIP

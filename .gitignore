@@ -1,0 +1,136 @@
+# Credentials and secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials/
+secrets/
+keys/
+.secrets/
+ssh_keys/
+
+# Configuration with sensitive data
+config/production.yaml
+config/secrets.yaml
+*.env.production
+*.env.local
+
+# Proxmox specific
+proxmox-credentials.json
+cluster-config.json
+node-passwords.txt
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfvars.json
+
+# Ansible
+*.retry
+.vault_pass
+vault_password_file
+inventory/production/
+host_vars/*/vault.yml
+group_vars/*/vault.yml
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+.kube/
+k8s/secrets/
+k8s/production/
+
+# Monitoring data
+prometheus/data/
+grafana/data/
+logs/
+monitoring/data/
+
+# Backup data
+backups/
+*.backup
+*.dump
+*.tar.gz
+*.zip
+
+# SSL certificates
+ssl/
+certs/
+letsencrypt/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+docker-compose.production.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+tmp/
+
+# Process logs
+*.log
+*.out
+nohup.out
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Runtime
+*.pid
+*.seed
+*.pid.lock
+pids/

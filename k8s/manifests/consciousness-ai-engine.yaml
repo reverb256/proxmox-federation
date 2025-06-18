@@ -1,0 +1,343 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consciousness-ai-engine
+  namespace: consciousness
+  labels:
+    app: consciousness-ai-engine
+    component: ai-analysis
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: consciousness-ai-engine
+  template:
+    metadata:
+      labels:
+        app: consciousness-ai-engine
+        component: ai-analysis
+    spec:
+      containers:
+      - name: consciousness-engine
+        image: node:20-alpine
+        ports:
+        - containerPort: 3003
+          name: consciousness
+        - containerPort: 8080
+          name: websocket
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: CONSCIOUSNESS_MODE
+          value: "kubernetes-distributed"
+        - name: CLUSTER_FEDERATION
+          value: "enabled"
+        - name: AI_ANALYSIS_WORKERS
+          value: "4"
+        - name: CONSCIOUSNESS_DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: coreflame-secrets
+              key: DATABASE_URL
+        - name: FEDERATION_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: federation-credentials
+              key: FEDERATION_TOKEN
+        command: ["node", "-e"]
+        args:
+        - |
+          const express = require('express');
+          const WebSocket = require('ws');
+          const { createServer } = require('http');
+          
+          const app = express();
+          const server = createServer(app);
+          const wss = new WebSocket.Server({ 
+            server, 
+            path: '/ws/consciousness',
+            verifyClient: (info) => {
+              // Verify federation token from headers
+              const token = info.req.headers['x-federation-token'];
+              return token === process.env.FEDERATION_TOKEN;
+            }
+          });
+          
+          app.use(express.json());
+          
+          // Active consciousness sessions
+          let consciousnessAnalyses = new Map();
+          let activeConnections = new Set();
+          
+          // WebSocket connection handler
+          wss.on('connection', (ws, req) => {
+            console.log('New consciousness WebSocket connection');
+            activeConnections.add(ws);
+            
+            ws.on('message', async (message) => {
+              try {
+                const data = JSON.parse(message);
+                
+                if (data.type === 'consciousness_analysis') {
+                  const analysisId = `analysis_${Date.now()}`;
+                  
+                  // Simulate AI consciousness analysis
+                  const analysis = {
+                    id: analysisId,
+                    character_profile: data.character_data,
+                    seven_pillar_analysis: {
+                      logical_thinking: Math.random() * 100,
+                      creative_expression: Math.random() * 100,
+                      emotional_intelligence: Math.random() * 100,
+                      social_dynamics: Math.random() * 100,
+                      ethical_reasoning: Math.random() * 100,
+                      strategic_planning: Math.random() * 100,
+                      adaptability: Math.random() * 100
+                    },
+                    consciousness_insights: [
+                      'Character demonstrates high analytical capability',
+                      'Strong creative problem-solving patterns detected',
+                      'Empathetic response patterns indicate high EQ',
+                      'Leadership tendencies in collaborative scenarios'
+                    ],
+                    federation_sync: true,
+                    timestamp: new Date().toISOString()
+                  };
+                  
+                  consciousnessAnalyses.set(analysisId, analysis);
+                  
+                  // Broadcast to all connected clients
+                  const response = {
+                    type: 'consciousness_result',
+                    analysis: analysis
+                  };
+                  
+                  activeConnections.forEach(client => {
+                    if (client !== ws && client.readyState === WebSocket.OPEN) {
+                      client.send(JSON.stringify(response));
+                    }
+                  });
+                  
+                  ws.send(JSON.stringify(response));
+                  
+                } else if (data.type === 'federation_sync') {
+                  // Handle cross-cluster consciousness sync
+                  const syncResponse = {
+                    type: 'sync_acknowledged',
+                    cluster_id: process.env.FEDERATION_CLUSTER_ID,
+                    synced_analyses: consciousnessAnalyses.size,
+                    timestamp: new Date().toISOString()
+                  };
+                  
+                  ws.send(JSON.stringify(syncResponse));
+                }
+              } catch (error) {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  message: 'Invalid message format'
+                }));
+              }
+            });
+            
+            ws.on('close', () => {
+              activeConnections.delete(ws);
+              console.log('Consciousness WebSocket connection closed');
+            });
+          });
+          
+          // REST API endpoints
+          app.post('/api/consciousness/analyze', async (req, res) => {
+            try {
+              const { character_data, analysis_type = 'comprehensive' } = req.body;
+              
+              const analysisId = `rest_analysis_${Date.now()}`;
+              const analysis = {
+                id: analysisId,
+                type: analysis_type,
+                character_profile: character_data,
+                seven_pillar_analysis: {
+                  logical_thinking: Math.random() * 100,
+                  creative_expression: Math.random() * 100,
+                  emotional_intelligence: Math.random() * 100,
+                  social_dynamics: Math.random() * 100,
+                  ethical_reasoning: Math.random() * 100,
+                  strategic_planning: Math.random() * 100,
+                  adaptability: Math.random() * 100
+                },
+                consciousness_level: Math.floor(Math.random() * 10) + 1,
+                insights: [
+                  'Analytical processing patterns detected',
+                  'Creative synthesis capabilities identified',
+                  'Emotional resonance mapping complete',
+                  'Social interaction preferences mapped'
+                ],
+                federation_ready: true,
+                timestamp: new Date().toISOString()
+              };
+              
+              consciousnessAnalyses.set(analysisId, analysis);
+              
+              res.json({
+                success: true,
+                analysis_id: analysisId,
+                analysis: analysis,
+                websocket_url: '/ws/consciousness'
+              });
+              
+            } catch (error) {
+              res.status(500).json({
+                error: 'Consciousness analysis failed',
+                details: error.message
+              });
+            }
+          });
+          
+          app.get('/api/consciousness/status', (req, res) => {
+            res.json({
+              service: 'consciousness-ai-engine',
+              status: 'operational',
+              active_analyses: consciousnessAnalyses.size,
+              websocket_connections: activeConnections.size,
+              federation_enabled: true,
+              kubernetes_mode: true,
+              cluster_id: process.env.FEDERATION_CLUSTER_ID || 'unknown'
+            });
+          });
+          
+          app.get('/api/consciousness/analyses', (req, res) => {
+            const analyses = Array.from(consciousnessAnalyses.values());
+            res.json({
+              total_analyses: analyses.length,
+              analyses: analyses.slice(-10) // Return last 10
+            });
+          });
+          
+          app.post('/api/consciousness/sync', async (req, res) => {
+            try {
+              const { source_cluster, consciousness_data, sync_type } = req.body;
+              
+              // Validate federation token
+              const authToken = req.headers['x-federation-token'];
+              if (authToken !== process.env.FEDERATION_TOKEN) {
+                return res.status(401).json({ error: 'Invalid federation token' });
+              }
+              
+              let syncedCount = 0;
+              
+              if (consciousness_data && Array.isArray(consciousness_data)) {
+                consciousness_data.forEach(data => {
+                  const syncId = `sync_${source_cluster}_${Date.now()}_${syncedCount}`;
+                  consciousnessAnalyses.set(syncId, {
+                    ...data,
+                    synced_from: source_cluster,
+                    sync_timestamp: new Date().toISOString()
+                  });
+                  syncedCount++;
+                });
+              }
+              
+              res.json({
+                sync_successful: true,
+                records_synced: syncedCount,
+                total_analyses: consciousnessAnalyses.size,
+                sync_type: sync_type
+              });
+              
+            } catch (error) {
+              res.status(500).json({
+                error: 'Consciousness sync failed',
+                details: error.message
+              });
+            }
+          });
+          
+          app.get('/health', (req, res) => {
+            res.json({
+              status: 'healthy',
+              service: 'consciousness-ai-engine',
+              uptime: process.uptime(),
+              memory_usage: process.memoryUsage()
+            });
+          });
+          
+          const PORT = process.env.PORT || 3003;
+          server.listen(PORT, '0.0.0.0', () => {
+            console.log(`Consciousness AI Engine running on port ${PORT}`);
+            console.log(`WebSocket server available at /ws/consciousness`);
+            console.log(`Federation mode: ${process.env.CLUSTER_FEDERATION}`);
+          });
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/consciousness/status
+            port: 3003
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "400m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consciousness-ai-engine-service
+  namespace: consciousness
+  labels:
+    app: consciousness-ai-engine
+spec:
+  selector:
+    app: consciousness-ai-engine
+  ports:
+  - name: consciousness
+    port: 3003
+    targetPort: 3003
+  - name: websocket
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: consciousness-engine-policy
+  namespace: consciousness
+spec:
+  podSelector:
+    matchLabels:
+      app: consciousness-ai-engine
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: coreflame-system
+    - namespaceSelector:
+        matchLabels:
+          name: federation
+    ports:
+    - protocol: TCP
+      port: 3003
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: coreflame-system
+  - to: [] # Allow external federation connections
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 6443

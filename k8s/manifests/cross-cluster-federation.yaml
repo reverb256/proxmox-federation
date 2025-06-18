@@ -1,0 +1,310 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cross-cluster-federation
+  namespace: coreflame-system
+  labels:
+    app: cross-cluster-federation
+    component: federation-controller
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cross-cluster-federation
+  template:
+    metadata:
+      labels:
+        app: cross-cluster-federation
+        component: federation-controller
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: federation-controller
+      containers:
+      - name: federation-controller
+        image: node:20-alpine
+        ports:
+        - containerPort: 3001
+          name: federation
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: CLUSTER_MODE
+          value: "kubernetes-federation"
+        - name: FEDERATION_CLUSTER_ID
+          valueFrom:
+            configMapKeyRef:
+              name: federation-cluster-config
+              key: CLUSTER_ID
+        - name: PEER_CLUSTERS
+          valueFrom:
+            configMapKeyRef:
+              name: federation-cluster-config
+              key: PEER_CLUSTERS
+        - name: FEDERATION_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: federation-credentials
+              key: FEDERATION_TOKEN
+        - name: COLLABORATION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: federation-credentials
+              key: COLLABORATION_SECRET
+        envFrom:
+        - configMapRef:
+            name: federation-cluster-config
+        command: ["node", "-e"]
+        args:
+        - |
+          const express = require('express');
+          const app = express();
+          app.use(express.json());
+          
+          // Cross-cluster discovery endpoint
+          app.get('/api/federation/discovery', (req, res) => {
+            res.json({
+              cluster_id: process.env.FEDERATION_CLUSTER_ID,
+              cluster_type: 'talos-kubernetes',
+              platform: 'proxmox',
+              endpoints: {
+                collaboration: 'http://cross-cluster-federation-service:3001/api/collaboration',
+                consciousness: 'http://consciousness-engine-service.consciousness:3003/api/consciousness',
+                federation: 'http://cross-cluster-federation-service:3001/api/federation'
+              },
+              capabilities: [
+                'ai-collaboration',
+                'consciousness-sync',
+                'cross-cluster-deployment',
+                'federated-authentication'
+              ],
+              status: 'active',
+              last_heartbeat: new Date().toISOString()
+            });
+          });
+          
+          // Cross-cluster heartbeat
+          app.post('/api/federation/heartbeat', (req, res) => {
+            const { cluster_id, timestamp, status } = req.body;
+            console.log(`Heartbeat from ${cluster_id} at ${timestamp}: ${status}`);
+            res.json({ received: true, timestamp: new Date().toISOString() });
+          });
+          
+          // Federated collaboration proxy
+          app.post('/api/federation/collaborate/:endpoint', async (req, res) => {
+            try {
+              const peerClusters = JSON.parse(process.env.PEER_CLUSTERS || '[]');
+              const results = [];
+              
+              for (const cluster of peerClusters) {
+                try {
+                  const response = await fetch(`${cluster.collaboration_url}/${req.params.endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-Federation-Token': process.env.FEDERATION_TOKEN,
+                      'X-Source-Cluster': process.env.FEDERATION_CLUSTER_ID
+                    },
+                    body: JSON.stringify(req.body)
+                  });
+                  
+                  if (response.ok) {
+                    const data = await response.json();
+                    results.push({
+                      cluster: cluster.name,
+                      status: 'success',
+                      data: data
+                    });
+                  } else {
+                    results.push({
+                      cluster: cluster.name,
+                      status: 'error',
+                      error: response.statusText
+                    });
+                  }
+                } catch (error) {
+                  results.push({
+                    cluster: cluster.name,
+                    status: 'unreachable',
+                    error: error.message
+                  });
+                }
+              }
+              
+              res.json({
+                federation_response: true,
+                source_cluster: process.env.FEDERATION_CLUSTER_ID,
+                results: results
+              });
+            } catch (error) {
+              res.status(500).json({ error: 'Federation collaboration failed' });
+            }
+          });
+          
+          // Consciousness synchronization
+          app.post('/api/federation/consciousness/sync', async (req, res) => {
+            try {
+              const { consciousness_data, sync_type = 'incremental' } = req.body;
+              const peerClusters = JSON.parse(process.env.PEER_CLUSTERS || '[]');
+              const syncResults = [];
+              
+              for (const cluster of peerClusters) {
+                try {
+                  const response = await fetch(`${cluster.consciousness_url}/sync`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-Federation-Token': process.env.FEDERATION_TOKEN,
+                      'X-Consciousness-Encryption': process.env.CONSCIOUSNESS_ENCRYPTION_KEY
+                    },
+                    body: JSON.stringify({
+                      source_cluster: process.env.FEDERATION_CLUSTER_ID,
+                      sync_type: sync_type,
+                      consciousness_data: consciousness_data,
+                      timestamp: new Date().toISOString()
+                    })
+                  });
+                  
+                  if (response.ok) {
+                    const syncData = await response.json();
+                    syncResults.push({
+                      cluster: cluster.name,
+                      status: 'synced',
+                      records_synced: syncData.records_synced || 0
+                    });
+                  }
+                } catch (error) {
+                  syncResults.push({
+                    cluster: cluster.name,
+                    status: 'sync_failed',
+                    error: error.message
+                  });
+                }
+              }
+              
+              res.json({
+                sync_initiated: true,
+                sync_type: sync_type,
+                results: syncResults
+              });
+            } catch (error) {
+              res.status(500).json({ error: 'Consciousness sync failed' });
+            }
+          });
+          
+          // Health check
+          app.get('/health', (req, res) => {
+            res.json({ status: 'healthy', service: 'cross-cluster-federation' });
+          });
+          
+          // Metrics endpoint
+          app.get('/metrics', (req, res) => {
+            res.set('Content-Type', 'text/plain');
+            res.send(`
+# HELP federation_requests_total Total federation requests
+# TYPE federation_requests_total counter
+federation_requests_total 0
+
+# HELP federation_clusters_connected Connected peer clusters
+# TYPE federation_clusters_connected gauge
+federation_clusters_connected 1
+
+# HELP consciousness_sync_operations_total Consciousness sync operations
+# TYPE consciousness_sync_operations_total counter
+consciousness_sync_operations_total 0
+            `);
+          });
+          
+          const PORT = process.env.PORT || 3001;
+          app.listen(PORT, '0.0.0.0', () => {
+            console.log(`Cross-cluster federation controller running on port ${PORT}`);
+            console.log(`Cluster ID: ${process.env.FEDERATION_CLUSTER_ID}`);
+          });
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: federation-certs
+          mountPath: /etc/federation/certs
+          readOnly: true
+      volumes:
+      - name: federation-certs
+        secret:
+          secretName: federation-credentials
+          items:
+          - key: CLUSTER_CERT
+            path: cluster.crt
+          - key: CLUSTER_KEY
+            path: cluster.key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cross-cluster-federation-service
+  namespace: coreflame-system
+  labels:
+    app: cross-cluster-federation
+spec:
+  selector:
+    app: cross-cluster-federation
+  ports:
+  - name: federation
+    port: 3001
+    targetPort: 3001
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: federation-controller
+  namespace: coreflame-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: federation-controller
+rules:
+- apiGroups: [""]
+  resources: ["services", "endpoints", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: federation-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: federation-controller
+subjects:
+- kind: ServiceAccount
+  name: federation-controller
+  namespace: coreflame-system

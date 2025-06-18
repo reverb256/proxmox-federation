@@ -1,0 +1,128 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: coreflame-ingress
+  namespace: coreflame-system
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/websocket-services: "reverb256-portfolio-service,cross-cluster-federation-service"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+spec:
+  ingressClassName: nginx
+  rules:
+  # Main application domain
+  - host: reverb256.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: reverb256-portfolio-service
+            port:
+              number: 80
+      - path: /ws/federation
+        pathType: Prefix
+        backend:
+          service:
+            name: reverb256-portfolio-service
+            port:
+              number: 80
+      - path: /api/federation
+        pathType: Prefix
+        backend:
+          service:
+            name: cross-cluster-federation-service
+            port:
+              number: 3001
+      - path: /api/consciousness
+        pathType: Prefix
+        backend:
+          service:
+            name: consciousness-ai-engine-service
+            port:
+              number: 3003
+  
+  # Federation subdomain
+  - host: federation.reverb256.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cross-cluster-federation-service
+            port:
+              number: 3001
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: cross-cluster-federation-service
+            port:
+              number: 3001
+  
+  # Consciousness subdomain
+  - host: consciousness.reverb256.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: consciousness-ai-engine-service
+            port:
+              number: 3003
+      - path: /ws/consciousness
+        pathType: Prefix
+        backend:
+          service:
+            name: consciousness-ai-engine-service
+            port:
+              number: 3003
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: consciousness-ai-engine-service
+            port:
+              number: 3003
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingress-access-policy
+  namespace: coreflame-system
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 3002
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: consciousness
+    - namespaceSelector:
+        matchLabels:
+          name: federation
+    ports:
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 3003

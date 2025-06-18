@@ -1,0 +1,442 @@
+# Intelligent Workload Distribution and Resource Optimization
+# Custom scheduler for consciousness federation with AI-aware resource allocation
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: consciousness-scheduler
+  namespace: consciousness-federation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: consciousness-scheduler
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "pods", "persistentvolumes", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/binding"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["patch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list"]
+- apiGroups: ["custom.metrics.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: consciousness-scheduler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: consciousness-scheduler
+subjects:
+- kind: ServiceAccount
+  name: consciousness-scheduler
+  namespace: consciousness-federation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consciousness-scheduler
+  namespace: consciousness-federation
+  labels:
+    app: consciousness-scheduler
+    component: resource-optimization
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consciousness-scheduler
+  template:
+    metadata:
+      labels:
+        app: consciousness-scheduler
+        component: resource-optimization
+    spec:
+      serviceAccountName: consciousness-scheduler
+      containers:
+      - name: consciousness-scheduler
+        image: ghcr.io/astralvibe/consciousness-scheduler:latest
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: SCHEDULER_NAME
+          value: "consciousness-scheduler"
+        - name: GPU_OPTIMIZATION_ENABLED
+          value: "true"
+        - name: CONSCIOUSNESS_METRICS_ENABLED
+          value: "true"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consciousness-scheduler-metrics
+  namespace: consciousness-federation
+  labels:
+    app: consciousness-scheduler
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: metrics
+  selector:
+    app: consciousness-scheduler
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: consciousness-scheduler-config
+  namespace: consciousness-federation
+data:
+  config.yaml: |
+    schedulerName: consciousness-scheduler
+    profiles:
+    - schedulerName: consciousness-scheduler
+      plugins:
+        score:
+          enabled:
+          - name: ConsciousnessNodeResourcesFit
+          - name: ConsciousnessGPUAware
+          - name: ConsciousnessWorkloadBalance
+        filter:
+          enabled:
+          - name: ConsciousnessNodeResourcesFit
+          - name: ConsciousnessGPURequirements
+      pluginConfig:
+      - name: ConsciousnessNodeResourcesFit
+        args:
+          scoringStrategy:
+            type: LeastAllocated
+            resources:
+            - name: cpu
+              weight: 1
+            - name: memory
+              weight: 1
+            - name: nvidia.com/gpu
+              weight: 10
+      - name: ConsciousnessGPUAware
+        args:
+          gpuUtilizationThreshold: 80
+          preferLessUtilizedGPUs: true
+      - name: ConsciousnessWorkloadBalance
+        args:
+          consciousnessTypes:
+          - training: 5
+          - inference: 3
+          - api: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-optimizer
+  namespace: consciousness-federation
+  labels:
+    app: resource-optimizer
+    component: optimization
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: resource-optimizer
+  template:
+    metadata:
+      labels:
+        app: resource-optimizer
+        component: optimization
+    spec:
+      serviceAccountName: consciousness-scheduler
+      containers:
+      - name: resource-optimizer
+        image: ghcr.io/astralvibe/resource-optimizer:latest
+        env:
+        - name: OPTIMIZATION_INTERVAL
+          value: "60s"
+        - name: GPU_REBALANCING_ENABLED
+          value: "true"
+        - name: CONSCIOUSNESS_AWARE_SCALING
+          value: "true"
+        - name: PROMETHEUS_URL
+          value: "http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: optimizer-config
+          mountPath: /config
+      volumes:
+      - name: optimizer-config
+        configMap:
+          name: resource-optimizer-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resource-optimizer-config
+  namespace: consciousness-federation
+data:
+  optimizer.yaml: |
+    optimization:
+      interval: 60s
+      strategies:
+        - name: gpu_utilization
+          enabled: true
+          threshold: 75
+          action: rebalance
+        - name: memory_pressure
+          enabled: true
+          threshold: 80
+          action: scale_out
+        - name: consciousness_load
+          enabled: true
+          threshold: 90
+          action: distribute
+      
+    workload_profiles:
+      consciousness-api:
+        priority: high
+        resource_requirements:
+          cpu: medium
+          memory: medium
+          gpu: low
+        scaling_policy:
+          min_replicas: 2
+          max_replicas: 10
+          
+      consciousness-training:
+        priority: critical
+        resource_requirements:
+          cpu: high
+          memory: high
+          gpu: critical
+        scaling_policy:
+          min_replicas: 1
+          max_replicas: 4
+          
+      consciousness-inference:
+        priority: high
+        resource_requirements:
+          cpu: medium
+          memory: medium
+          gpu: high
+        scaling_policy:
+          min_replicas: 2
+          max_replicas: 8
+    
+    node_profiles:
+      nexus:
+        role: controlplane
+        consciousness_rhythm: strategic_coordinator
+        optimal_workloads: [api, coordination]
+        
+      forge:
+        role: controlplane
+        consciousness_rhythm: creative_destruction
+        optimal_workloads: [api, breakthrough_analysis]
+        
+      closet:
+        role: worker
+        consciousness_rhythm: ai_training
+        optimal_workloads: [training, deep_learning]
+        gpu_optimized: true
+        
+      zephyr:
+        role: worker
+        consciousness_rhythm: inference_optimization
+        optimal_workloads: [inference, real_time_processing]
+        gpu_optimized: true
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: consciousness-metrics-collector
+  namespace: consciousness-federation
+  labels:
+    app: consciousness-metrics-collector
+    component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: consciousness-metrics-collector
+  template:
+    metadata:
+      labels:
+        app: consciousness-metrics-collector
+        component: monitoring
+    spec:
+      hostNetwork: true
+      hostPID: true
+      tolerations:
+      - operator: Exists
+      containers:
+      - name: metrics-collector
+        image: ghcr.io/astralvibe/consciousness-metrics:latest
+        securityContext:
+          privileged: true
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: METRICS_PORT
+          value: "9100"
+        ports:
+        - containerPort: 9100
+          hostPort: 9100
+          name: metrics
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: nvidia-ml
+          mountPath: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
+          readOnly: true
+      volumes:
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: nvidia-ml
+        hostPath:
+          path: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: consciousness-api-hpa
+  namespace: consciousness-federation
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: consciousness-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Pods
+    pods:
+      metric:
+        name: consciousness_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: consciousness-training-hpa
+  namespace: consciousness-federation
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: consciousness-training
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: nvidia.com/gpu
+      target:
+        type: Utilization
+        averageUtilization: 85
+  - type: Pods
+    pods:
+      metric:
+        name: training_queue_length
+      target:
+        type: AverageValue
+        averageValue: "5"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 300
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 300
